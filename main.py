@@ -11,6 +11,8 @@ import itertools
 import logging
 import matplotlib.pyplot as plt
 
+plt.rcParams["figure.dpi"] = 300
+
 warnings.filterwarnings("ignore")
 
 sklearn.set_config(transform_output="pandas")
@@ -89,6 +91,9 @@ def upload_file(file):
 
 
 st.title(":blue[Предсказание будущего]")
+st.write(
+    "тестовый датасет https://github.com/DmitriiPrikhodko/01-03-04-Streamlit-time-sequence-forecast/blob/main/test_data/full_set.csv"
+)
 
 if "prediction_made" not in st.session_state:
     st.session_state.prediction_made = False
@@ -234,64 +239,6 @@ if st.session_state.file_uploaded:
 
             except Exception as e:
                 st.error(f"Ошибка при построении графика: {e}")
-
-        if st.button("Сделать прогноз", key="make_forecast"):
-            if st.session_state.forecast_period is None:
-                st.session_state.show_period_input = True
-            else:
-                # Выполнить прогноз с сохраненным периодом
-                st.write(
-                    f"Выполняем прогноз на {st.session_state.forecast_period} периодов..."
-                )
-                data_prophet_train = st.session_state.resampled_data.iloc[
-                    : int(len(st.session_state.resampled_data.index) * 0.8), :
-                ]
-                data_prophet_train = data_prophet_train.reset_index()
-                data_prophet_train.columns = ["ds", "y"]
-
-                data_prophet_test = st.session_state.resampled_data.iloc[
-                    int(len(st.session_state.resampled_data.index) * 0.8 + 1) :, :
-                ]
-                data_prophet_test = data_prophet_test.reset_index()
-                data_prophet_test.columns = ["ds", "y"]
-                model = Prophet(
-                    changepoint_prior_scale=params_tuning(
-                        data_prophet_train,
-                        data_prophet_test,
-                        st.session_state.forecast_period,
-                    )[0],
-                    seasonality_prior_scale=params_tuning(
-                        data_prophet_train,
-                        data_prophet_test,
-                        st.session_state.forecast_period,
-                    )[1],
-                )
-                model.fit(data_prophet_train)
-                future = model.make_future_dataframe(
-                    periods=st.session_state.forecast_period,
-                    freq=period_translation[st.session_state.period],
-                )
-                forecast = model.predict(future)
-                fig_prophet = model.plot(forecast)
-                fig_prophet.legend(
-                    fontsize=14, loc="upper right", bbox_to_anchor=(1, 0.98)
-                )
-                plt.title("Прогноз продаж с помощью Prophet", fontsize=16)
-                plt.xlabel("Дата", fontsize=12)
-                plt.ylabel("Объем продаж ($)", fontsize=12)
-                st.pyplot(fig_prophet)
-                forecast_train = model.predict(data_prophet_train["ds"])
-                forecast_test = model.predict(data_prophet_test["ds"])
-                st.write("Метрики модели")
-                st.dataframe(
-                    pd.DataFrame(
-                        data=calculate_metrics(
-                            forecast_test["yhat"], data_prophet_test["y"]
-                        )
-                    )
-                )
-
-            # Если нужно показать поле ввода периода
         if st.session_state.show_period_input:
             st.write("Введите количество периодов предсказания")
             st.write(f"Текущий период - {st.session_state.get('period', 'не указан')}")
@@ -324,3 +271,76 @@ if st.session_state.file_uploaded:
                 st.session_state.forecast_period = None
                 st.session_state.show_period_input = True
                 st.rerun()
+
+        if st.button("Сделать прогноз", key="make_forecast"):
+            if st.session_state.forecast_period is None:
+                st.session_state.show_period_input = True
+            else:
+                # Выполнить прогноз с сохраненным периодом
+                st.write(
+                    f"Выполняем прогноз на {st.session_state.forecast_period} периодов..."
+                )
+                data_prophet_train = st.session_state.resampled_data.iloc[
+                    : int(len(st.session_state.resampled_data.index) * 0.8), :
+                ]
+                data_prophet_train = data_prophet_train.reset_index()
+                data_prophet_train.columns = ["ds", "y"]
+
+                data_prophet_test = st.session_state.resampled_data.iloc[
+                    int(len(st.session_state.resampled_data.index) * 0.8 + 1) :, :
+                ]
+                data_prophet_test = data_prophet_test.reset_index()
+                data_prophet_test.columns = ["ds", "y"]
+                # st.write(*data_prophet_test.columns)
+                # st.dataframe(data_prophet_test)
+                model = Prophet(
+                    changepoint_prior_scale=params_tuning(
+                        data_prophet_train,
+                        data_prophet_test,
+                        st.session_state.forecast_period,
+                    )[0],
+                    seasonality_prior_scale=params_tuning(
+                        data_prophet_train,
+                        data_prophet_test,
+                        st.session_state.forecast_period,
+                    )[1],
+                )
+                model.fit(data_prophet_train)
+                future = model.make_future_dataframe(
+                    periods=st.session_state.forecast_period,
+                    freq=period_translation[st.session_state.period],
+                )
+                forecast = model.predict(future)
+                fig_prophet = model.plot(forecast)
+                fig_prophet.legend(
+                    fontsize=14,
+                    loc="center left",
+                    bbox_to_anchor=(1, 0.5),
+                )
+                plt.title("Прогноз данных с помощью Prophet", fontsize=16)
+                plt.xlabel("Дата", fontsize=12)
+                plt.ylabel("Значение", fontsize=12)
+                plt.tight_layout()
+                ax = fig_prophet.gca()  # Получаем текущие оси
+                ax.plot(
+                    st.session_state.resampled_data.index,
+                    st.session_state.resampled_data.values,
+                    "k-",
+                    linewidth=0.5,
+                    label="Observed data",
+                )
+                st.pyplot(fig_prophet)
+                # forecast_train = model.predict(data_prophet_train["ds"])
+                forecast_test = model.predict(data_prophet_test[["ds"]])
+                st.write("Метрики модели")
+                st.dataframe(
+                    pd.DataFrame(
+                        data=calculate_metrics(
+                            forecast_test["yhat"], data_prophet_test["y"]
+                        ),
+                        index=["ProphetModel"],
+                    )
+                )
+                st.write("Компоненты модели (тренд и годовой срез)")
+                figure_comp = model.plot_components(forecast)
+                st.pyplot(figure_comp)
